@@ -1,0 +1,1932 @@
+{-# START_FILE package.yaml #-}
+name:                {{name}}
+version:             0.1.0.0
+github:              "{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}"
+license:             BSD-3-Clause
+author:              "{{author-name}}{{^author-name}}Author name here{{/author-name}}"
+maintainer:          "{{author-email}}{{^author-email}}example@example.com{{/author-email}}"
+copyright:           "{{year}}{{^year}}2024{{/year}} {{author-name}}{{^author-name}}Author name here{{/author-name}}"
+
+extra-source-files:
+- README.md
+- CHANGELOG.md
+
+description:         Please see the README on GitHub at <https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- relude
+- uuid
+- time
+- text
+- effectful
+- effectful-th
+- postgresql-simple
+- resource-pool
+- jose
+- lens
+- string-qq
+- safe
+- aeson
+- servant
+- servant-server
+- warp
+- wai
+- http-types
+- mtl
+- postgresql-migration
+- katip
+- katip-effectful
+- bcrypt
+- bytestring
+- swagger2
+- servant-swagger
+- servant-swagger-ui
+- insert-ordered-containers
+
+default-extensions:
+- ConstraintKinds
+- DataKinds
+- FlexibleContexts
+- FlexibleInstances
+- MultiParamTypeClasses
+- GADTs
+- TemplateHaskell
+- TypeFamilies
+- TypeOperators
+- DeriveGeneric
+- DeriveAnyClass
+- DerivingStrategies
+- GeneralizedNewtypeDeriving
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- OverloadedStrings
+- RecordWildCards
+- ScopedTypeVariables
+- StandaloneDeriving
+- TupleSections
+- TypeApplications
+- ViewPatterns
+- NoImplicitPrelude
+- StrictData
+- DuplicateRecordFields
+- OverloadedRecordDot
+- QuasiQuotes
+
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wmissing-home-modules
+- -Wpartial-fields
+- -Wredundant-constraints
+
+library:
+  source-dirs: src
+
+executables:
+  {{name}}-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - {{name}}
+
+tests:
+  {{name}}-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    build-tools:
+    - hspec-discover
+    dependencies:
+    - {{name}}
+    - hspec
+    - effectful
+    - containers
+    - uuid
+    - time
+    - http-conduit
+    - aeson
+    - postgresql-simple
+    - warp
+    - resource-pool
+
+{-# START_FILE stack.yaml #-}
+snapshot: lts-24.31
+
+packages:
+- .
+
+extra-deps:
+  - git: https://github.com/frasertweedale/hs-jose.git
+    commit: '37615be74f0e3117fc44bab052df6ba5f445cd0c'
+  - git: https://github.com/eldritch-cookie/katip-effectful.git
+    commit: 892077f251c916e1f7f4995c746eaa9ed8a430df
+
+{-# START_FILE .gitignore #-}
+.stack-work/
+*~
+*.cabal
+
+{-# START_FILE .envrc.example #-}
+# Required
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=postgres
+export DB_PASSWORD=postgres
+export DB_DATABASE={{name}}
+export JWT_SECRET=your-secret-key
+
+# Optional
+# export DB_POOL_MAX_SIZE=10
+# export DB_POOL_IDLE_TIMEOUT=30
+# export JWT_EXPIRY_MINUTES=1440
+# export PORT=8080
+
+{-# START_FILE README.md #-}
+# {{name}}
+
+DDD + Effectful Haskell backend with Identity bounded context.
+
+## Getting Started
+
+```bash
+cp .envrc.example .envrc
+source .envrc
+
+stack build
+stack exec {{name}}-exe
+```
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| DB_HOST | Yes | - | PostgreSQL host |
+| DB_PORT | Yes | - | PostgreSQL port |
+| DB_USER | Yes | - | PostgreSQL user |
+| DB_PASSWORD | Yes | - | PostgreSQL password |
+| DB_DATABASE | Yes | - | PostgreSQL database |
+| JWT_SECRET | Yes | - | JWT signing key |
+| DB_POOL_MAX_SIZE | No | 10 | Connection pool max size |
+| DB_POOL_IDLE_TIMEOUT | No | 30 | Idle connection timeout (sec) |
+| JWT_EXPIRY_MINUTES | No | 1440 | JWT expiry time (min) |
+| PORT | No | 8080 | Server port |
+
+## API
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | /api/register | Sign up | - |
+| POST | /api/login | Log in | - |
+| GET | /api/me | Get my profile | JWT |
+| PUT | /api/me | Update profile | JWT |
+
+Swagger UI: http://localhost:8080/swagger-ui
+
+## Test
+
+```bash
+stack test
+```
+
+{-# START_FILE CHANGELOG.md #-}
+# Changelog for `{{name}}`
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to the
+[Haskell Package Versioning Policy](https://pvp.haskell.org/).
+
+## Unreleased
+
+## 0.1.0.0 - YYYY-MM-DD
+
+{-# START_FILE app/Main.hs #-}
+module Main (main) where
+
+import Relude
+
+import qualified {{name-as-module}}.ServerApp
+
+main :: IO ()
+main = {{name-as-module}}.ServerApp.main
+
+{-# START_FILE sql/migrations/0001_init.sql #-}
+CREATE TABLE users (
+  id UUID PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  hashed_password TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+{-# START_FILE src/{{name-as-module}}/ServerApp.hs #-}
+module {{name-as-module}}.ServerApp (main, mkApp, AppState (..)) where
+
+import Relude hiding (Reader, runReader)
+
+import Effectful (Eff, IOE, runEff)
+import Effectful.Error.Dynamic (Error, runErrorNoCallStack)
+import Effectful.Reader.Dynamic (Reader, runReader)
+import qualified Network.Wai.Handler.Warp as Warp
+import Network.Wai (Application)
+import Servant
+  ( Handler (Handler)
+  , ServerError
+  , hoistServerWithContext
+  , serveWithContext
+  , type (:<|>) ((:<|>))
+  )
+import Servant.Swagger.UI (swaggerSchemaUIServer)
+import System.Environment (getEnv)
+
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc)
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc)
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
+import {{name-as-module}}.Identity.Infra.Gateway.JwtAuthTokenGateway (JwtConfig (..))
+import {{name-as-module}}.Identity.Infra.Interpreter.AuthTokenSvcInterpreter as AuthTokenSvcInterpreter
+import {{name-as-module}}.Identity.Infra.Interpreter.PasswordSvcInterpreter as PasswordSvcInterpreter
+import {{name-as-module}}.Identity.Infra.Interpreter.UserRepoInterpreter as UserRepoInterpreter
+import {{name-as-module}}.Infra.Persistence.Database (DbConfig (..), DbState, initDbState, migrate)
+import {{name-as-module}}.Infra.Web.Auth (AuthContext, mkAuthContext)
+import {{name-as-module}}.Infra.Web.Root (rootServerT)
+import {{name-as-module}}.Infra.Web.Router (API)
+import {{name-as-module}}.Infra.Web.Swagger (FullAPI, swaggerDoc)
+
+type App =
+  Eff
+    '[ PasswordSvc
+     , AuthTokenSvc
+     , UserRepo
+     , Reader JwtConfig
+     , Reader DbState
+     , Error ServerError
+     , IOE
+     ]
+
+data AppState = AppState
+  { dbState :: DbState
+  , jwtConfig :: JwtConfig
+  }
+
+runner :: AppState -> App a -> IO (Either ServerError a)
+runner appState =
+  runEff
+    . runErrorNoCallStack
+    . runReader appState.dbState
+    . runReader appState.jwtConfig
+    . UserRepoInterpreter.run
+    . AuthTokenSvcInterpreter.run
+    . PasswordSvcInterpreter.run
+
+handlerRunner :: AppState -> App a -> Handler a
+handlerRunner appState = Handler . ExceptT . runner appState
+
+configFromEnv :: IO (DbConfig, JwtConfig, Int)
+configFromEnv = do
+  dbHost <- getEnv "DB_HOST" <&> toText
+  dbPort <- getEnv "DB_PORT" <&> (fromMaybe 5432 . readMaybe)
+  dbUser <- getEnv "DB_USER" <&> toText
+  dbPassword <- getEnv "DB_PASSWORD" <&> toText
+  dbDatabase <- getEnv "DB_DATABASE" <&> toText
+  dbPoolSize <- lookupEnv "DB_POOL_MAX_SIZE" <&> (fromMaybe 10 . (>>= readMaybe))
+  dbIdleTimeout <- lookupEnv "DB_POOL_IDLE_TIMEOUT" <&> (fromMaybe 30.0 . (>>= readMaybe))
+  jwtSecret <- getEnv "JWT_SECRET" <&> toText
+  jwtExpiry <- lookupEnv "JWT_EXPIRY_MINUTES" <&> (fromMaybe 1440 . (>>= readMaybe))
+  port <- lookupEnv "PORT" <&> (fromMaybe 8080 . (>>= readMaybe))
+  let dbConfig = DbConfig
+        { host = dbHost
+        , port = dbPort
+        , user = dbUser
+        , password = dbPassword
+        , database = dbDatabase
+        , poolMaxSize = dbPoolSize
+        , idleTimeoutSec = dbIdleTimeout
+        }
+      jwtCfg = JwtConfig
+        { secretKey = jwtSecret
+        , expiryMinutes = jwtExpiry
+        }
+  pure (dbConfig, jwtCfg, port)
+
+mkApp :: AppState -> Application
+mkApp appState =
+  let context = mkAuthContext appState.jwtConfig.secretKey
+  in serveWithContext
+       (Proxy :: Proxy FullAPI)
+       context
+       (swaggerSchemaUIServer swaggerDoc
+        :<|> hoistServerWithContext
+               (Proxy :: Proxy API)
+               (Proxy :: Proxy AuthContext)
+               (handlerRunner appState)
+               rootServerT)
+
+main :: IO ()
+main = do
+  (dbConfig, jwtCfg, port) <- configFromEnv
+  dbSt <- initDbState dbConfig
+  migrate dbSt
+  let appState = AppState dbSt jwtCfg
+  putStrLn $ "Starting server on port " <> show port
+  Warp.run port (mkApp appState)
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/User.hs #-}
+module {{name-as-module}}.Identity.Command.Domain.User
+  ( User (..)
+  , UserId (..)
+  , Email (..)
+  , HashedPassword (..)
+  , UserError (..)
+  , mkEmail
+  , createUser
+  ) where
+
+import Relude
+
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Time (UTCTime)
+import Data.UUID (UUID)
+import qualified Data.Text as T
+import Database.PostgreSQL.Simple.FromField (FromField)
+import Database.PostgreSQL.Simple.ToField (ToField)
+import Database.PostgreSQL.Simple.FromRow (FromRow)
+import Database.PostgreSQL.Simple.ToRow (ToRow)
+
+newtype UserId = UserId UUID
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (FromField, ToField, FromJSON, ToJSON)
+
+newtype Email = Email Text
+  deriving stock (Eq, Show)
+  deriving newtype (FromField, ToField, FromJSON, ToJSON)
+
+newtype HashedPassword = HashedPassword Text
+  deriving stock (Eq, Show)
+  deriving newtype (FromField, ToField)
+
+data User = User
+  { id :: UserId
+  , email :: Email
+  , hashedPassword :: HashedPassword
+  , name :: Text
+  , createdAt :: UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromRow, ToRow)
+
+data UserError
+  = UserNotFound UserId
+  | UserNotFoundByEmail Email
+  | EmailAlreadyExists Email
+  | InvalidEmail Text
+  | InvalidPassword Text
+  | PasswordMismatch
+  deriving stock (Eq, Show)
+
+mkEmail :: Text -> Either UserError Email
+mkEmail t
+  | T.null t = Left (InvalidEmail "Email cannot be empty")
+  | not ("@" `T.isInfixOf` t) = Left (InvalidEmail "Invalid email format")
+  | otherwise = Right (Email t)
+
+createUser :: UserId -> Email -> HashedPassword -> Text -> UTCTime -> User
+createUser uid email hashedPw name now = User
+  { id = uid
+  , email = email
+  , hashedPassword = hashedPw
+  , name = name
+  , createdAt = now
+  }
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/AuthToken.hs #-}
+module {{name-as-module}}.Identity.Command.Domain.AuthToken
+  ( AuthToken (..)
+  ) where
+
+import Relude
+
+newtype AuthToken = AuthToken Text
+  deriving stock (Eq, Show)
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/UserRepository.hs #-}
+module {{name-as-module}}.Identity.Command.Domain.UserRepository where
+
+import Relude
+
+import Effectful (Effect)
+import Effectful.TH (makeEffect)
+
+import {{name-as-module}}.Identity.Command.Domain.User (Email, User, UserId)
+
+data UserRepo :: Effect where
+  FindById :: UserId -> UserRepo m (Maybe User)
+  FindByEmail :: Email -> UserRepo m (Maybe User)
+  Save :: User -> UserRepo m ()
+
+makeEffect ''UserRepo
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/AuthTokenService.hs #-}
+module {{name-as-module}}.Identity.Command.Domain.AuthTokenService where
+
+import Effectful (Effect)
+import Effectful.TH (makeEffect)
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken)
+import {{name-as-module}}.Identity.Command.Domain.User (UserId)
+
+data AuthTokenSvc :: Effect where
+  GenerateToken :: UserId -> AuthTokenSvc m AuthToken
+
+makeEffect ''AuthTokenSvc
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/PasswordService.hs #-}
+module {{name-as-module}}.Identity.Command.Domain.PasswordService where
+
+import Relude
+
+import Effectful (Effect)
+import Effectful.TH (makeEffect)
+
+import {{name-as-module}}.Identity.Command.Domain.User (HashedPassword)
+
+data PasswordSvc :: Effect where
+  HashPassword :: Text -> PasswordSvc m HashedPassword
+  VerifyPassword :: Text -> HashedPassword -> PasswordSvc m Bool
+
+makeEffect ''PasswordSvc
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/UseCase/Register.hs #-}
+module {{name-as-module}}.Identity.Command.UseCase.Register
+  ( execute
+  ) where
+
+import Relude
+
+import qualified Data.Text as T
+import Data.UUID.V4 (nextRandom)
+import Data.Time (getCurrentTime)
+import Effectful (Eff, IOE, (:>))
+import Effectful.Error.Dynamic (runErrorNoCallStack, throwError)
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken)
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc, generateToken)
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc, hashPassword)
+import {{name-as-module}}.Identity.Command.Domain.User
+  ( Email
+  , UserError (..)
+  , UserId (..)
+  , createUser
+  )
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo, findByEmail, save)
+
+execute ::
+  (UserRepo :> es, AuthTokenSvc :> es, PasswordSvc :> es, IOE :> es) =>
+  Email -> Text -> Text -> Eff es (Either UserError AuthToken)
+execute email name rawPassword = runErrorNoCallStack $ do
+  existing <- findByEmail email
+  case existing of
+    Just _ -> throwError $ EmailAlreadyExists email
+    Nothing -> pure ()
+
+  when (T.null $ T.strip name) $
+    throwError $ InvalidPassword "Name is required"
+
+  when (T.length rawPassword < 4) $
+    throwError $ InvalidPassword "Password must be at least 4 characters"
+
+  hashedPw <- hashPassword rawPassword
+  uid <- liftIO $ UserId <$> nextRandom
+  now <- liftIO getCurrentTime
+  let user = createUser uid email hashedPw (T.strip name) now
+  save user
+  generateToken uid
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/UseCase/Login.hs #-}
+module {{name-as-module}}.Identity.Command.UseCase.Login
+  ( execute
+  ) where
+
+import Relude
+
+import Effectful (Eff, (:>))
+import Effectful.Error.Dynamic (runErrorNoCallStack, throwError)
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken)
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc, generateToken)
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc, verifyPassword)
+import {{name-as-module}}.Identity.Command.Domain.User (Email, User (..), UserError (..))
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo, findByEmail)
+
+execute ::
+  (UserRepo :> es, AuthTokenSvc :> es, PasswordSvc :> es) =>
+  Email -> Text -> Eff es (Either UserError AuthToken)
+execute email rawPassword = runErrorNoCallStack $ do
+  user <- findByEmail email >>= maybe (throwError $ UserNotFoundByEmail email) pure
+  valid <- verifyPassword rawPassword user.hashedPassword
+  unless valid $ throwError PasswordMismatch
+  generateToken user.id
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/UseCase/UpdateProfile.hs #-}
+module {{name-as-module}}.Identity.Command.UseCase.UpdateProfile
+  ( execute
+  ) where
+
+import Relude
+
+import qualified Data.Text as T
+import Effectful (Eff, (:>))
+import Effectful.Error.Dynamic (runErrorNoCallStack, throwError)
+
+import {{name-as-module}}.Identity.Command.Domain.User (User (..), UserError (..), UserId)
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo, findById, save)
+
+execute ::
+  (UserRepo :> es) =>
+  UserId -> Text -> Eff es (Either UserError User)
+execute userId newName = runErrorNoCallStack $ do
+  user <- findById userId >>= maybe (throwError $ UserNotFound userId) pure
+
+  when (T.null $ T.strip newName) $
+    throwError $ InvalidPassword "Name is required"
+
+  let updatedUser = user { name = T.strip newName }
+  save updatedUser
+  pure updatedUser
+
+{-# START_FILE src/{{name-as-module}}/Identity/Query/GetMe.hs #-}
+module {{name-as-module}}.Identity.Query.GetMe
+  ( execute
+  ) where
+
+import Relude
+
+import Effectful (Eff, (:>))
+import Effectful.Error.Dynamic (runErrorNoCallStack, throwError)
+
+import {{name-as-module}}.Identity.Command.Domain.User (User, UserError (..), UserId)
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo, findById)
+
+execute ::
+  (UserRepo :> es) =>
+  UserId -> Eff es (Either UserError User)
+execute uid = runErrorNoCallStack $ do
+  findById uid >>= maybe (throwError $ UserNotFound uid) pure
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Gateway/JwtAuthTokenGateway.hs #-}
+module {{name-as-module}}.Identity.Infra.Gateway.JwtAuthTokenGateway
+  ( JwtConfig (..)
+  , generate
+  ) where
+
+import Relude hiding (Reader, ask)
+
+import Control.Lens ((?~), review)
+import Crypto.JOSE.JWK (fromOctets)
+import Crypto.JWT
+  ( Audience (Audience)
+  , JWTError
+  , NumericDate (NumericDate)
+  , SignedJWT
+  , bestJWSAlg
+  , claimAud
+  , claimExp
+  , claimIat
+  , claimIss
+  , claimSub
+  , emptyClaimsSet
+  , newJWSHeaderProtected
+  , runJOSE
+  , signJWT
+  , string
+  )
+import Crypto.JOSE.Compact (encodeCompact)
+import Data.Time (NominalDiffTime, addUTCTime, getCurrentTime)
+import qualified Data.UUID as UUID
+import qualified Data.ByteString.Lazy as L
+import Effectful (Eff, IOE, (:>))
+import Effectful.Reader.Dynamic (Reader, ask)
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.User (UserId (..))
+
+data JwtConfig = JwtConfig
+  { secretKey :: Text
+  , expiryMinutes :: NominalDiffTime
+  }
+
+generate :: (Reader JwtConfig :> es, IOE :> es) => UserId -> Eff es AuthToken
+generate (UserId uuid) = do
+  config <- ask @JwtConfig
+  now <- liftIO getCurrentTime
+  let jwk = fromOctets (encodeUtf8 config.secretKey :: L.ByteString)
+      claims = emptyClaimsSet
+        & claimIss ?~ "{{name}}"
+        & claimSub ?~ review string (UUID.toText uuid)
+        & claimAud ?~ Audience ["{{name}}"]
+        & claimIat ?~ NumericDate now
+        & claimExp ?~ NumericDate (addUTCTime (config.expiryMinutes * 60) now)
+  result :: Either JWTError SignedJWT <- liftIO $ runJOSE $ do
+    alg <- bestJWSAlg jwk
+    signJWT jwk (newJWSHeaderProtected alg) claims
+  case result of
+    Left _ -> pure $ AuthToken ""
+    Right jwt -> pure $ AuthToken $ decodeUtf8 $ encodeCompact jwt
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Gateway/BcryptPasswordGateway.hs #-}
+module {{name-as-module}}.Identity.Infra.Gateway.BcryptPasswordGateway
+  ( hash
+  , verify
+  ) where
+
+import Relude
+
+import qualified Crypto.BCrypt as BCrypt
+import Effectful (Eff, IOE, (:>))
+
+import {{name-as-module}}.Identity.Command.Domain.User (HashedPassword (..))
+
+hash :: (IOE :> es) => Text -> Eff es HashedPassword
+hash rawPassword = do
+  result <- liftIO $ BCrypt.hashPasswordUsingPolicy
+    BCrypt.slowerBcryptHashingPolicy
+    (encodeUtf8 rawPassword)
+  case result of
+    Nothing -> error "Failed to hash password"
+    Just hashed -> pure $ HashedPassword $ decodeUtf8 hashed
+
+verify :: Text -> HashedPassword -> Bool
+verify rawPassword (HashedPassword hashed) =
+  BCrypt.validatePassword (encodeUtf8 hashed) (encodeUtf8 rawPassword)
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Interpreter/UserRepoInterpreter.hs #-}
+module {{name-as-module}}.Identity.Infra.Interpreter.UserRepoInterpreter
+  ( run
+  ) where
+
+import Relude hiding (Reader)
+
+import Effectful (Eff, IOE, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
+import Effectful.Reader.Dynamic (Reader)
+
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo (..))
+import {{name-as-module}}.Infra.Persistence.Database (DbState)
+import qualified {{name-as-module}}.Identity.Infra.Persistence.PgUserRepo as PgUserRepo
+
+run :: (Reader DbState :> es, IOE :> es) => Eff (UserRepo : es) a -> Eff es a
+run = interpret $ \_ -> \case
+  FindById uid -> PgUserRepo.findById uid
+  FindByEmail email -> PgUserRepo.findByEmail email
+  Save user -> PgUserRepo.save user
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Interpreter/AuthTokenSvcInterpreter.hs #-}
+module {{name-as-module}}.Identity.Infra.Interpreter.AuthTokenSvcInterpreter
+  ( run
+  ) where
+
+import Relude hiding (Reader)
+
+import Effectful (Eff, IOE, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
+import Effectful.Reader.Dynamic (Reader)
+
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc (..))
+import {{name-as-module}}.Identity.Infra.Gateway.JwtAuthTokenGateway (JwtConfig)
+import qualified {{name-as-module}}.Identity.Infra.Gateway.JwtAuthTokenGateway as JwtGateway
+
+run :: (Reader JwtConfig :> es, IOE :> es) => Eff (AuthTokenSvc : es) a -> Eff es a
+run = interpret $ \_ -> \case
+  GenerateToken uid -> JwtGateway.generate uid
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Interpreter/PasswordSvcInterpreter.hs #-}
+module {{name-as-module}}.Identity.Infra.Interpreter.PasswordSvcInterpreter
+  ( run
+  ) where
+
+import Relude
+
+import Effectful (Eff, IOE, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
+
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc (..))
+import qualified {{name-as-module}}.Identity.Infra.Gateway.BcryptPasswordGateway as BcryptGateway
+
+run :: (IOE :> es) => Eff (PasswordSvc : es) a -> Eff es a
+run = interpret $ \_ -> \case
+  HashPassword rawPassword -> BcryptGateway.hash rawPassword
+  VerifyPassword rawPassword hashed -> pure $ BcryptGateway.verify rawPassword hashed
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Persistence/PgUserRepo.hs #-}
+module {{name-as-module}}.Identity.Infra.Persistence.PgUserRepo
+  ( findById
+  , findByEmail
+  , save
+  ) where
+
+import Relude hiding (Reader)
+
+import Database.PostgreSQL.Simple (query, execute)
+import Database.PostgreSQL.Simple.SqlQQ (sql)
+import Effectful (Eff, IOE, (:>))
+import Effectful.Reader.Dynamic (Reader)
+import Safe (headMay)
+
+import {{name-as-module}}.Identity.Command.Domain.User (Email, User, UserId)
+import {{name-as-module}}.Infra.Persistence.Database (DbState, withConnection)
+
+findById :: (Reader DbState :> es, IOE :> es) => UserId -> Eff es (Maybe User)
+findById uid =
+  withConnection $ \conn -> do
+    rows <- liftIO $ query conn
+      [sql|
+        SELECT id, email, hashed_password, name, created_at
+        FROM users
+        WHERE id = ?
+      |]
+      [uid]
+    pure $ headMay rows
+
+findByEmail :: (Reader DbState :> es, IOE :> es) => Email -> Eff es (Maybe User)
+findByEmail email =
+  withConnection $ \conn -> do
+    rows <- liftIO $ query conn
+      [sql|
+        SELECT id, email, hashed_password, name, created_at
+        FROM users
+        WHERE email = ?
+      |]
+      [email]
+    pure $ headMay rows
+
+save :: (Reader DbState :> es, IOE :> es) => User -> Eff es ()
+save user =
+  withConnection $ \conn -> do
+    void $ liftIO $ execute conn
+      [sql|
+        INSERT INTO users (id, email, hashed_password, name, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (id) DO UPDATE SET
+          email = EXCLUDED.email,
+          hashed_password = EXCLUDED.hashed_password,
+          name = EXCLUDED.name
+      |]
+      user
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Web/Handler/Register.hs #-}
+module {{name-as-module}}.Identity.Infra.Web.Handler.Register
+  ( Route
+  , handler
+  ) where
+
+import Relude
+
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Swagger (ToSchema)
+import Effectful (Eff, IOE)
+import qualified Effectful as Eff
+import Effectful.Error.Dynamic (Error, throwError)
+import Servant (JSON, Post, ReqBody, ServerError, type (:>))
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc)
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc)
+import {{name-as-module}}.Identity.Command.Domain.User (UserError (..), mkEmail)
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
+import {{name-as-module}}.Infra.Web.ErrorResponse (badRequest, conflict)
+import qualified {{name-as-module}}.Identity.Command.UseCase.Register as Register
+
+type Route = "register" Servant.:> ReqBody '[JSON] RegisterRequest Servant.:> Post '[JSON] RegisterResponse
+
+data RegisterRequest = RegisterRequest
+  { email :: Text
+  , name :: Text
+  , password :: Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON, ToSchema)
+
+newtype RegisterResponse = RegisterResponse
+  { token :: Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
+
+toError :: UserError -> ServerError
+toError (EmailAlreadyExists _) = conflict "Error" "Email already exists" "EmailAlreadyExists"
+toError (InvalidEmail msg) = badRequest "Error" msg "InvalidEmail"
+toError (InvalidPassword msg) = badRequest "Error" msg "InvalidPassword"
+toError err = badRequest "Error" (show err) "BadRequest"
+
+handler ::
+  ( UserRepo Eff.:> es
+  , AuthTokenSvc Eff.:> es
+  , PasswordSvc Eff.:> es
+  , IOE Eff.:> es
+  , Error ServerError Eff.:> es
+  ) =>
+  RegisterRequest -> Eff es RegisterResponse
+handler req = do
+  email <- case mkEmail req.email of
+    Right e -> pure e
+    Left err -> throwError $ toError err
+  result <- Register.execute email req.name req.password
+  case result of
+    Left err -> throwError $ toError err
+    Right (AuthToken t) -> pure $ RegisterResponse t
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Web/Handler/Login.hs #-}
+module {{name-as-module}}.Identity.Infra.Web.Handler.Login
+  ( Route
+  , handler
+  ) where
+
+import Relude
+
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Swagger (ToSchema)
+import Effectful (Eff)
+import qualified Effectful as Eff
+import Effectful.Error.Dynamic (Error, throwError)
+import Servant (JSON, Post, ReqBody, ServerError, type (:>))
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc)
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc)
+import {{name-as-module}}.Identity.Command.Domain.User (UserError (..), mkEmail)
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
+import {{name-as-module}}.Infra.Web.ErrorResponse (badRequest, unauthorized)
+import qualified {{name-as-module}}.Identity.Command.UseCase.Login as Login
+
+type Route = "login" Servant.:> ReqBody '[JSON] LoginRequest Servant.:> Post '[JSON] LoginResponse
+
+data LoginRequest = LoginRequest
+  { email :: Text
+  , password :: Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON, ToSchema)
+
+newtype LoginResponse = LoginResponse
+  { token :: Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
+
+toError :: UserError -> ServerError
+toError (UserNotFoundByEmail _) = unauthorized "Error" "Invalid email or password" "AuthFailed"
+toError PasswordMismatch = unauthorized "Error" "Invalid email or password" "AuthFailed"
+toError (InvalidEmail msg) = badRequest "Error" msg "InvalidEmail"
+toError err = badRequest "Error" (show err) "BadRequest"
+
+handler ::
+  ( UserRepo Eff.:> es
+  , AuthTokenSvc Eff.:> es
+  , PasswordSvc Eff.:> es
+  , Error ServerError Eff.:> es
+  ) =>
+  LoginRequest -> Eff es LoginResponse
+handler req = do
+  email <- case mkEmail req.email of
+    Right e -> pure e
+    Left err -> throwError $ toError err
+  result <- Login.execute email req.password
+  case result of
+    Left err -> throwError $ toError err
+    Right (AuthToken t) -> pure $ LoginResponse t
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Web/Handler/GetMe.hs #-}
+module {{name-as-module}}.Identity.Infra.Web.Handler.GetMe
+  ( Route
+  , handler
+  ) where
+
+import Relude
+
+import Data.Aeson (ToJSON)
+import Data.Swagger (ToSchema)
+import Data.Time (UTCTime)
+import qualified Data.UUID as UUID
+import Effectful (Eff)
+import qualified Effectful as Eff
+import Effectful.Error.Dynamic (Error, throwError)
+import Servant (Get, JSON, ServerError, type (:>))
+
+import {{name-as-module}}.Identity.Command.Domain.User (Email (..), User (..), UserId (..), UserError (..))
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
+import {{name-as-module}}.Infra.Web.Auth (AuthToken (..))
+import {{name-as-module}}.Infra.Web.ErrorResponse (notFound, unauthorized)
+import qualified {{name-as-module}}.Identity.Query.GetMe as GetMe
+
+type Route = "me" Servant.:> Get '[JSON] MeResponse
+
+data MeResponse = MeResponse
+  { id :: Text
+  , email :: Text
+  , name :: Text
+  , createdAt :: UTCTime
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
+
+toError :: UserError -> ServerError
+toError (UserNotFound _) = notFound "Error" "User not found" "UserNotFound"
+toError err = notFound "Error" (show err) "NotFound"
+
+handler ::
+  ( UserRepo Eff.:> es
+  , Error ServerError Eff.:> es
+  ) =>
+  AuthToken -> Eff es MeResponse
+handler token = do
+  uid <- case UUID.fromText token.userId of
+    Just uuid -> pure $ UserId uuid
+    Nothing -> throwError $ unauthorized "Error" "Invalid token" "InvalidToken"
+  result <- GetMe.execute uid
+  case result of
+    Left err -> throwError $ toError err
+    Right user -> do
+      let UserId userUuid = user.id
+      pure $ MeResponse
+        { id = UUID.toText userUuid
+        , email = let Email e = user.email in e
+        , name = user.name
+        , createdAt = user.createdAt
+        }
+
+{-# START_FILE src/{{name-as-module}}/Identity/Infra/Web/Handler/UpdateProfile.hs #-}
+module {{name-as-module}}.Identity.Infra.Web.Handler.UpdateProfile
+  ( Route
+  , handler
+  ) where
+
+import Relude
+
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Swagger (ToSchema)
+import Data.Time (UTCTime)
+import qualified Data.UUID as UUID
+import Effectful (Eff)
+import qualified Effectful as Eff
+import Effectful.Error.Dynamic (Error, throwError)
+import Servant (JSON, Put, ReqBody, ServerError, type (:>))
+
+import {{name-as-module}}.Identity.Command.Domain.User (Email (..), User (..), UserId (..), UserError (..))
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
+import {{name-as-module}}.Infra.Web.Auth (AuthToken (..))
+import {{name-as-module}}.Infra.Web.ErrorResponse (badRequest, notFound, unauthorized)
+import qualified {{name-as-module}}.Identity.Command.UseCase.UpdateProfile as UpdateProfile
+
+type Route = "me" Servant.:> ReqBody '[JSON] UpdateProfileRequest Servant.:> Put '[JSON] UpdateProfileResponse
+
+newtype UpdateProfileRequest = UpdateProfileRequest
+  { name :: Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON, ToSchema)
+
+data UpdateProfileResponse = UpdateProfileResponse
+  { id :: Text
+  , email :: Text
+  , name :: Text
+  , createdAt :: UTCTime
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
+
+toError :: UserError -> ServerError
+toError (UserNotFound _) = notFound "Error" "User not found" "UserNotFound"
+toError (InvalidPassword msg) = badRequest "Error" msg "InvalidPassword"
+toError err = badRequest "Error" (show err) "BadRequest"
+
+handler ::
+  ( UserRepo Eff.:> es
+  , Error ServerError Eff.:> es
+  ) =>
+  AuthToken -> UpdateProfileRequest -> Eff es UpdateProfileResponse
+handler token req = do
+  uid <- case UUID.fromText token.userId of
+    Just uuid -> pure $ UserId uuid
+    Nothing -> throwError $ unauthorized "Error" "Invalid token" "InvalidToken"
+  result <- UpdateProfile.execute uid req.name
+  case result of
+    Left err -> throwError $ toError err
+    Right user -> do
+      let UserId userUuid = user.id
+      pure $ UpdateProfileResponse
+        { id = UUID.toText userUuid
+        , email = let Email e = user.email in e
+        , name = user.name
+        , createdAt = user.createdAt
+        }
+
+{-# START_FILE src/{{name-as-module}}/Infra/Persistence/Database.hs #-}
+module {{name-as-module}}.Infra.Persistence.Database
+  ( DbConfig (..)
+  , DbState (..)
+  , initDbState
+  , withConnection
+  , withTx
+  , migrate
+  ) where
+
+import Relude hiding (Reader, ask, local)
+
+import Data.Pool (Pool, defaultPoolConfig, newPool, destroyResource, putResource, takeResource)
+import Database.PostgreSQL.Simple.Migration
+  ( MigrationCommand (..)
+  , MigrationResult (..)
+  , defaultOptions
+  , runMigrations
+  )
+import Database.PostgreSQL.Simple
+  ( Connection
+  , ConnectInfo (..)
+  , close
+  , commit
+  , connect
+  , rollback
+  )
+import Database.PostgreSQL.Simple.Transaction
+  ( IsolationLevel (..)
+  , ReadWriteMode (..)
+  , TransactionMode (..)
+  , beginMode
+  )
+import Effectful (Eff, IOE, (:>))
+import Effectful.Exception (onException)
+import Effectful.Reader.Dynamic (Reader, ask, local)
+
+data DbConfig = DbConfig
+  { host :: Text
+  , port :: Int
+  , user :: Text
+  , password :: Text
+  , database :: Text
+  , poolMaxSize :: Int
+  , idleTimeoutSec :: Double
+  }
+
+data DbState = DbState
+  { pool :: Pool Connection
+  , txConn :: Maybe Connection
+  , txMode :: TransactionMode
+  }
+
+initDbState :: DbConfig -> IO DbState
+initDbState config = do
+  p <- newPool $ defaultPoolConfig openConn close config.idleTimeoutSec config.poolMaxSize
+  pure $ DbState p Nothing defaultTxMode
+  where
+    openConn = connect $ ConnectInfo
+      { connectHost = toString config.host
+      , connectPort = fromIntegral config.port
+      , connectUser = toString config.user
+      , connectPassword = toString config.password
+      , connectDatabase = toString config.database
+      }
+    defaultTxMode = TransactionMode ReadCommitted ReadWrite
+
+migrate :: DbState -> IO ()
+migrate st = do
+  (conn, localPool) <- takeResource st.pool
+  result <- runMigrations conn defaultOptions
+    [MigrationInitialization, MigrationDirectory "sql/migrations"]
+  putResource localPool conn
+  case result of
+    MigrationError err -> error $ "Migration failed: " <> show err
+    _ -> putStrLn "Migration completed successfully"
+
+withResource :: (IOE :> es) => Pool a -> (a -> Eff es r) -> Eff es r
+withResource p act = do
+  (res, localPool) <- liftIO $ takeResource p
+  r <- act res `onException` liftIO (destroyResource p localPool res)
+  liftIO $ putResource localPool res
+  pure r
+
+withConnection ::
+  (IOE :> es, Reader DbState :> es) =>
+  (Connection -> Eff es a) ->
+  Eff es a
+withConnection action = do
+  st <- ask @DbState
+  case st.txConn of
+    Just conn -> action conn
+    Nothing -> withResource st.pool action
+
+withTx ::
+  (IOE :> es, Reader DbState :> es) =>
+  Eff es a ->
+  Eff es a
+withTx action = do
+  st <- ask @DbState
+  withResource st.pool $ \conn -> do
+    liftIO $ beginMode st.txMode conn
+    r <- action `onException` liftIO (rollback conn)
+    liftIO $ commit conn
+    local (const (DbState st.pool (Just conn) st.txMode)) $
+      pure r
+
+{-# START_FILE src/{{name-as-module}}/Infra/Web/Auth.hs #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
+module {{name-as-module}}.Infra.Web.Auth
+  ( AuthToken (..)
+  , AuthContext
+  , mkAuthContext
+  , parseJwt
+  ) where
+
+import Relude hiding ((&))
+
+import Data.List (lookup)
+
+import Control.Monad.Except (throwError)
+
+import Control.Lens ((^.), (^?))
+import Crypto.JOSE.Compact (decodeCompact)
+import Crypto.JOSE.JWK (fromOctets)
+import Crypto.JWT
+  ( ClaimsSet
+  , JWTError (..)
+  , SignedJWT
+  , claimSub
+  , defaultJWTValidationSettings
+  , runJOSE
+  , string
+  , verifyJWT
+  )
+import qualified Data.ByteString.Lazy as L
+import Network.Wai (Request, requestHeaders)
+import Servant (Context (EmptyContext, (:.)))
+import Servant.API.Experimental.Auth (AuthProtect)
+import Servant.Server (err401)
+import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
+
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+
+data AuthToken = AuthToken
+  { userId :: Text
+  }
+
+type instance AuthServerData (AuthProtect "jwt") = AuthToken
+
+type AuthContext = '[AuthHandler Request AuthToken]
+
+mkAuthContext :: Text -> Context AuthContext
+mkAuthContext secret = authHandler secret :. EmptyContext
+
+authHandler :: Text -> AuthHandler Request AuthToken
+authHandler secret = mkAuthHandler $ \req -> do
+  case extractBearerToken req of
+    Nothing -> throwError err401
+    Just token -> do
+      result <- liftIO $ parseJwt secret token
+      case result of
+        Left _ -> throwError err401
+        Right sub -> pure $ AuthToken sub
+
+extractBearerToken :: Request -> Maybe Text
+extractBearerToken req = do
+  authHeader <- lookup "Authorization" (requestHeaders req)
+  let headerText = TE.decodeUtf8 authHeader
+  T.stripPrefix "Bearer " headerText
+
+parseJwt :: Text -> Text -> IO (Either JWTError Text)
+parseJwt secret token = do
+  result :: Either JWTError ClaimsSet <- runJOSE $ do
+    let jwk = fromOctets (encodeUtf8 secret :: L.ByteString)
+        audCheck = (== "{{name}}")
+    jwt :: SignedJWT <- decodeCompact $ L.fromStrict $ encodeUtf8 token
+    verifyJWT (defaultJWTValidationSettings audCheck) jwk jwt
+  pure $ case result of
+    Left err -> Left err
+    Right claims ->
+      case claims ^. claimSub >>= (^? string) of
+        Nothing -> Left (JWTClaimsSetDecodeError "Missing sub claim")
+        Just t -> Right t
+
+{-# START_FILE src/{{name-as-module}}/Infra/Web/ErrorResponse.hs #-}
+module {{name-as-module}}.Infra.Web.ErrorResponse
+  ( ErrorResponse (..)
+  , badRequest
+  , unauthorized
+  , forbidden
+  , notFound
+  , conflict
+  ) where
+
+import Relude
+
+import Data.Aeson (ToJSON)
+import qualified Data.Aeson as JSON
+import Data.Swagger (ToSchema)
+import Servant.Server
+  ( ServerError (errBody, errHeaders)
+  , err400
+  , err401
+  , err403
+  , err404
+  , err409
+  )
+
+data ErrorResponse = ErrorResponse
+  { title :: Text
+  , message :: Text
+  , code :: Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, ToSchema)
+
+jsonError :: ServerError -> ErrorResponse -> ServerError
+jsonError serverError err =
+  serverError
+    { errBody = JSON.encode err
+    , errHeaders = [("Content-Type", "application/json")]
+    }
+
+badRequest :: Text -> Text -> Text -> ServerError
+badRequest t m c = jsonError err400 (ErrorResponse t m c)
+
+unauthorized :: Text -> Text -> Text -> ServerError
+unauthorized t m c = jsonError err401 (ErrorResponse t m c)
+
+forbidden :: Text -> Text -> Text -> ServerError
+forbidden t m c = jsonError err403 (ErrorResponse t m c)
+
+notFound :: Text -> Text -> Text -> ServerError
+notFound t m c = jsonError err404 (ErrorResponse t m c)
+
+conflict :: Text -> Text -> Text -> ServerError
+conflict t m c = jsonError err409 (ErrorResponse t m c)
+
+{-# START_FILE src/{{name-as-module}}/Infra/Web/Root.hs #-}
+module {{name-as-module}}.Infra.Web.Root
+  ( rootServerT
+  ) where
+
+import Effectful (Eff)
+import qualified Effectful as Eff
+import Effectful.Error.Dynamic (Error)
+import Effectful.Reader.Dynamic (Reader)
+import Servant (ServerError, ServerT, type (:<|>) ((:<|>)))
+
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc)
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc)
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
+import {{name-as-module}}.Identity.Infra.Gateway.JwtAuthTokenGateway (JwtConfig)
+
+import {{name-as-module}}.Infra.Web.Auth (AuthToken)
+import {{name-as-module}}.Infra.Web.Router (API, ProtectedAPI, UnProtectedAPI)
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Register as Register
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Login as Login
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.GetMe as GetMe
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.UpdateProfile as UpdateProfile
+
+type Effs es =
+  ( Eff.IOE Eff.:> es
+  , Error ServerError Eff.:> es
+  , UserRepo Eff.:> es
+  , AuthTokenSvc Eff.:> es
+  , PasswordSvc Eff.:> es
+  , Reader JwtConfig Eff.:> es
+  )
+
+rootServerT :: (Effs es) => ServerT API (Eff es)
+rootServerT = unProtectedServerT :<|> protectedServerT
+
+unProtectedServerT :: (Effs es) => ServerT UnProtectedAPI (Eff es)
+unProtectedServerT =
+  Register.handler
+  :<|> Login.handler
+
+protectedServerT :: (Effs es) => AuthToken -> ServerT ProtectedAPI (Eff es)
+protectedServerT token =
+  GetMe.handler token
+  :<|> UpdateProfile.handler token
+
+{-# START_FILE src/{{name-as-module}}/Infra/Web/Router.hs #-}
+module {{name-as-module}}.Infra.Web.Router
+  ( API
+  , UnProtectedAPI
+  , ProtectedAPI
+  ) where
+
+import Servant (type (:<|>), type (:>))
+import Servant.API.Experimental.Auth (AuthProtect)
+
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Register as Register
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Login as Login
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.GetMe as GetMe
+import qualified {{name-as-module}}.Identity.Infra.Web.Handler.UpdateProfile as UpdateProfile
+
+type API = "api" :> (UnProtectedAPI :<|> AuthProtect "jwt" :> ProtectedAPI)
+
+type UnProtectedAPI =
+  Register.Route
+  :<|> Login.Route
+
+type ProtectedAPI =
+  GetMe.Route
+  :<|> UpdateProfile.Route
+
+{-# START_FILE src/{{name-as-module}}/Infra/Web/Swagger.hs #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+module {{name-as-module}}.Infra.Web.Swagger
+  ( SwaggerAPI
+  , FullAPI
+  , swaggerDoc
+  ) where
+
+import Relude
+
+import Data.Swagger
+  ( Swagger
+  , HasDescription (..)
+  , HasInfo (..)
+  , HasTitle (..)
+  , HasVersion (..)
+  )
+import Control.Lens ((.~), (?~))
+import Servant (type (:<|>), type (:>))
+import Servant.API.Experimental.Auth (AuthProtect)
+import Servant.Swagger (HasSwagger (..), toSwagger)
+import Servant.Swagger.UI (SwaggerSchemaUI)
+
+import {{name-as-module}}.Infra.Web.Router (API)
+
+-- | Orphan HasSwagger instance for AuthProtect "jwt"
+instance HasSwagger api => HasSwagger (AuthProtect "jwt" :> api) where
+  toSwagger _ = toSwagger (Proxy :: Proxy api)
+
+type SwaggerAPI = SwaggerSchemaUI "swagger-ui" "swagger.json"
+
+type FullAPI = SwaggerAPI :<|> API
+
+swaggerDoc :: Swagger
+swaggerDoc =
+  toSwagger (Proxy :: Proxy API)
+    & info . title .~ "{{name}} API"
+    & info . version .~ "0.1.0.0"
+    & info . description ?~ "Identity API"
+
+{-# START_FILE src/{{name-as-module}}/Util/Log.hs #-}
+module {{name-as-module}}.Util.Log
+  ( log
+  , logError
+  , logWarn
+  , logInfo
+  , logDebug
+  , runLogger
+  ) where
+
+import Relude
+
+import Effectful (Eff, IOE, (:>))
+import Effectful.Katip (KatipE, runKatipContextE)
+import Katip
+  ( ColorStrategy (ColorIfTerminal)
+  , Severity (..)
+  , Verbosity (V2)
+  , bracketFormat
+  , defaultScribeSettings
+  , initLogEnv
+  , logTM
+  , ls
+  , mkHandleScribeWithFormatter
+  , permitItem
+  , registerScribe
+  )
+
+log :: (KatipE :> es, IOE :> es) => Severity -> Text -> Eff es ()
+log level message =
+  $(logTM) level
+    $ ls message
+
+logError :: (KatipE :> es, IOE :> es) => Text -> Eff es ()
+logError = log ErrorS
+
+logWarn :: (KatipE :> es, IOE :> es) => Text -> Eff es ()
+logWarn = log WarningS
+
+logInfo :: (KatipE :> es, IOE :> es) => Text -> Eff es ()
+logInfo = log InfoS
+
+logDebug :: (KatipE :> es, IOE :> es) => Text -> Eff es ()
+logDebug = log DebugS
+
+runLogger :: (IOE :> es) => Eff (KatipE : es) a -> Eff es a
+runLogger act = do
+  le <- liftIO $ do
+    handleScribe <- mkHandleScribeWithFormatter
+      bracketFormat
+      ColorIfTerminal
+      stdout
+      (permitItem DebugS)
+      V2
+    registerScribe "stdout" handleScribe defaultScribeSettings
+      =<< initLogEnv "{{name}}" "dev"
+  runKatipContextE le () "main" act
+
+{-# START_FILE test/Spec.hs #-}
+{-# OPTIONS_GHC -F -pgmF hspec-discover #-}
+
+{-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/InMemoryUserRepo.hs #-}
+module {{name-as-module}}.Unit.Identity.Command.InMemoryUserRepo
+  ( run
+  ) where
+
+import Relude
+
+import qualified Data.Map.Strict as Map
+
+import Effectful (Eff, IOE, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
+
+import {{name-as-module}}.Identity.Command.Domain.User (User (..), UserId)
+import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo (..))
+
+run :: (IOE :> es) => IORef (Map UserId User) -> Eff (UserRepo : es) a -> Eff es a
+run ref = interpret $ \_ -> \case
+  FindById uid -> liftIO $ Map.lookup uid <$> readIORef ref
+  FindByEmail email -> liftIO $ do
+    users <- readIORef ref
+    pure $ find (\u -> u.email == email) (Map.elems users)
+  Save user -> liftIO $ modifyIORef ref (Map.insert user.id user)
+
+{-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/InMemoryAuthTokenSvc.hs #-}
+module {{name-as-module}}.Unit.Identity.Command.InMemoryAuthTokenSvc
+  ( run
+  ) where
+
+import Relude
+
+import Effectful (Eff)
+import Effectful.Dispatch.Dynamic (interpret)
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc (..))
+
+run :: Eff (AuthTokenSvc : es) a -> Eff es a
+run = interpret $ \_ -> \case
+  GenerateToken uid -> pure $ AuthToken ("test-token-" <> show uid)
+
+{-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/InMemoryPasswordSvc.hs #-}
+module {{name-as-module}}.Unit.Identity.Command.InMemoryPasswordSvc
+  ( run
+  ) where
+
+import Relude
+
+import Effectful (Eff)
+import Effectful.Dispatch.Dynamic (interpret)
+
+import {{name-as-module}}.Identity.Command.Domain.User (HashedPassword (..))
+import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc (..))
+
+run :: Eff (PasswordSvc : es) a -> Eff es a
+run = interpret $ \_ -> \case
+  HashPassword raw -> pure $ HashedPassword ("hashed:" <> raw)
+  VerifyPassword raw (HashedPassword hashed) -> pure $ hashed == ("hashed:" <> raw)
+
+{-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/UseCase/RegisterSpec.hs #-}
+module {{name-as-module}}.Unit.Identity.Command.UseCase.RegisterSpec (spec) where
+
+import Relude
+
+import Effectful (runEff)
+import Test.Hspec
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.User (Email (..), UserError (..))
+
+import {{name-as-module}}.Unit.Identity.Command.InMemoryAuthTokenSvc as AuthTokenSvc
+import {{name-as-module}}.Unit.Identity.Command.InMemoryPasswordSvc as PasswordSvc
+import {{name-as-module}}.Unit.Identity.Command.InMemoryUserRepo as UserRepo
+
+import qualified {{name-as-module}}.Identity.Command.UseCase.Register as Register
+
+spec :: Spec
+spec = describe "Register" $ do
+  it "registers a new user and returns a token" $ do
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ Register.execute (Email "test@example.com") "TestUser" "password123"
+    case result of
+      Right (AuthToken t) -> t `shouldNotBe` ""
+      Left err -> expectationFailure $ "Expected Right, got Left " <> show err
+
+  it "returns EmailAlreadyExists for duplicate emails" $ do
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ do
+          _ <- Register.execute (Email "dup@example.com") "User1" "password123"
+          Register.execute (Email "dup@example.com") "User2" "password456"
+    result `shouldBe` Left (EmailAlreadyExists (Email "dup@example.com"))
+
+  it "returns InvalidPassword for passwords shorter than 4 characters" $ do
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ Register.execute (Email "short@example.com") "TestUser" "abc"
+    case result of
+      Left (InvalidPassword _) -> pure ()
+      other -> expectationFailure $ "Expected InvalidPassword, got " <> show other
+
+  it "fails for empty names" $ do
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ Register.execute (Email "noname@example.com") "  " "password123"
+    case result of
+      Left (InvalidPassword _) -> pure ()
+      other -> expectationFailure $ "Expected InvalidPassword, got " <> show other
+
+  it "saves the user after registration" $ do
+    (result, users) <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      r <- UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ Register.execute (Email "saved@example.com") "TestUser" "password123"
+      us <- liftIO $ readIORef userRef
+      pure (r, us)
+    result `shouldSatisfy` isRight
+    length users `shouldBe` 1
+
+{-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/UseCase/LoginSpec.hs #-}
+module {{name-as-module}}.Unit.Identity.Command.UseCase.LoginSpec (spec) where
+
+import Relude
+
+import qualified Data.Map.Strict as Map
+
+import Data.Time.Clock (getCurrentTime)
+import Data.UUID.V4 (nextRandom)
+import Effectful (runEff)
+import Test.Hspec
+
+import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.User
+
+import {{name-as-module}}.Unit.Identity.Command.InMemoryAuthTokenSvc as AuthTokenSvc
+import {{name-as-module}}.Unit.Identity.Command.InMemoryPasswordSvc as PasswordSvc
+import {{name-as-module}}.Unit.Identity.Command.InMemoryUserRepo as UserRepo
+
+import qualified {{name-as-module}}.Identity.Command.UseCase.Login as Login
+
+mkTestUser :: Email -> IO User
+mkTestUser email = do
+  uid <- UserId <$> nextRandom
+  now <- getCurrentTime
+  pure $ createUser uid email (HashedPassword "hashed:secret123") "TestUser" now
+
+spec :: Spec
+spec = describe "Login" $ do
+  it "returns a token for correct email and password" $ do
+    let email = Email "user@example.com"
+    user <- mkTestUser email
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef (Map.singleton user.id user)
+      UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ Login.execute email "secret123"
+    case result of
+      Right (AuthToken t) -> t `shouldNotBe` ""
+      Left err -> expectationFailure $ "Expected Right, got Left " <> show err
+
+  it "returns UserNotFoundByEmail for non-existent email" $ do
+    let email = Email "nobody@example.com"
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ Login.execute email "password"
+    result `shouldBe` Left (UserNotFoundByEmail email)
+
+  it "returns PasswordMismatch for wrong password" $ do
+    let email = Email "user@example.com"
+    user <- mkTestUser email
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef (Map.singleton user.id user)
+      UserRepo.run userRef
+        . AuthTokenSvc.run
+        . PasswordSvc.run
+        $ Login.execute email "wrongpassword"
+    result `shouldBe` Left PasswordMismatch
+
+{-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/UseCase/UpdateProfileSpec.hs #-}
+module {{name-as-module}}.Unit.Identity.Command.UseCase.UpdateProfileSpec (spec) where
+
+import Relude
+
+import qualified Data.Map.Strict as Map
+
+import Data.Time.Clock (getCurrentTime)
+import Data.UUID.V4 (nextRandom)
+import Effectful (runEff)
+import Test.Hspec
+
+import {{name-as-module}}.Identity.Command.Domain.User
+  ( Email (..)
+  , HashedPassword (..)
+  , User (..)
+  , UserError (..)
+  , UserId (..)
+  , createUser
+  )
+
+import {{name-as-module}}.Unit.Identity.Command.InMemoryUserRepo as UserRepo
+
+import qualified {{name-as-module}}.Identity.Command.UseCase.UpdateProfile as UpdateProfile
+
+spec :: Spec
+spec = describe "UpdateProfile" $ do
+  it "updates the user name" $ do
+    uid <- UserId <$> nextRandom
+    now <- getCurrentTime
+    let user = createUser uid (Email "test@example.com") (HashedPassword "hashed") "OldName" now
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef (Map.singleton uid user)
+      UserRepo.run userRef
+        $ UpdateProfile.execute uid "NewName"
+    case result of
+      Right updated -> updated.name `shouldBe` "NewName"
+      Left err -> expectationFailure $ "Expected Right, got Left " <> show err
+
+  it "fails for empty names" $ do
+    uid <- UserId <$> nextRandom
+    now <- getCurrentTime
+    let user = createUser uid (Email "test@example.com") (HashedPassword "hashed") "OldName" now
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef (Map.singleton uid user)
+      UserRepo.run userRef
+        $ UpdateProfile.execute uid "  "
+    case result of
+      Left (InvalidPassword _) -> pure ()
+      other -> expectationFailure $ "Expected InvalidPassword, got " <> show other
+
+  it "fails for non-existent user" $ do
+    uid <- UserId <$> nextRandom
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      UserRepo.run userRef
+        $ UpdateProfile.execute uid "NewName"
+    case result of
+      Left (UserNotFound _) -> pure ()
+      other -> expectationFailure $ "Expected UserNotFound, got " <> show other
+
+  it "trims whitespace from name" $ do
+    uid <- UserId <$> nextRandom
+    now <- getCurrentTime
+    let user = createUser uid (Email "test@example.com") (HashedPassword "hashed") "OldName" now
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef (Map.singleton uid user)
+      UserRepo.run userRef
+        $ UpdateProfile.execute uid "  NewName  "
+    case result of
+      Right updated -> updated.name `shouldBe` "NewName"
+      Left err -> expectationFailure $ "Expected Right, got Left " <> show err
+
+{-# START_FILE test/{{name-as-module}}/Integration/TestServer.hs #-}
+module {{name-as-module}}.Integration.TestServer
+  ( TestEnv (..)
+  , withTestServer
+  , postJSON
+  , putJSON
+  , getJSON
+  , signupUser
+  ) where
+
+import Relude hiding (fromString)
+
+import Data.Aeson (FromJSON, ToJSON, object, (.=))
+import qualified Data.Aeson as Aeson
+import Data.Pool (destroyAllResources)
+import Data.String (fromString)
+import Data.UUID.V4 (nextRandom)
+import qualified Data.UUID as UUID
+import Database.PostgreSQL.Simple (ConnectInfo (..), close, connect, execute_)
+import Network.HTTP.Simple
+  ( Response
+  , defaultRequest
+  , getResponseBody
+  , getResponseStatusCode
+  , httpLBS
+  , setRequestBodyJSON
+  , setRequestHeader
+  , setRequestMethod
+  , setRequestPath
+  , setRequestPort
+  )
+import qualified Network.Wai.Handler.Warp as Warp
+import Test.Hspec (shouldBe)
+
+import {{name-as-module}}.Identity.Infra.Gateway.JwtAuthTokenGateway (JwtConfig (..))
+import {{name-as-module}}.Infra.Persistence.Database (DbConfig (..), DbState (..), initDbState, migrate)
+import {{name-as-module}}.ServerApp (AppState (..), mkApp)
+
+data TestEnv = TestEnv
+  { port :: Int
+  }
+
+testConnectInfo :: String -> ConnectInfo
+testConnectInfo dbName = ConnectInfo
+  { connectHost = "localhost"
+  , connectPort = 5432
+  , connectUser = "postgres"
+  , connectPassword = "postgres"
+  , connectDatabase = dbName
+  }
+
+testDbConfig :: String -> DbConfig
+testDbConfig dbName = DbConfig
+  { host = "localhost"
+  , port = 5432
+  , user = "postgres"
+  , password = "postgres"
+  , database = toText dbName
+  , poolMaxSize = 20
+  , idleTimeoutSec = 30
+  }
+
+testJwtConfig :: JwtConfig
+testJwtConfig = JwtConfig
+  { secretKey = "test-jwt-secret-for-integration-tests"
+  , expiryMinutes = 1440
+  }
+
+withTestServer :: (TestEnv -> IO a) -> IO a
+withTestServer action = do
+  -- 1. 테스트 DB 생성
+  uuid <- nextRandom
+  let dbName = "{{name}}_test_" <> take 8 (UUID.toString uuid)
+  adminConn <- connect (testConnectInfo "postgres")
+  _ <- execute_ adminConn (fromString $ "CREATE DATABASE \"" <> dbName <> "\"")
+  close adminConn
+
+  -- 2. 서버 시작 (migrate 자동)
+  dbSt <- initDbState (testDbConfig dbName)
+  migrate dbSt
+  let appState = AppState dbSt testJwtConfig
+
+  -- 3. 테스트 수행
+  result <- Warp.testWithApplication (pure $ mkApp appState) $ \p ->
+    action (TestEnv p)
+
+  -- 4. 서버 종료 → DB 삭제
+  destroyAllResources dbSt.pool
+  cleanupConn <- connect (testConnectInfo "postgres")
+  _ <- execute_ cleanupConn (fromString $ "DROP DATABASE \"" <> dbName <> "\"")
+  close cleanupConn
+
+  pure result
+
+postJSON :: (ToJSON a) => Int -> ByteString -> a -> Maybe Text -> IO (Response LByteString)
+postJSON p path body mToken = httpLBS
+  $ maybe Relude.id (\t -> setRequestHeader "Authorization" [encodeUtf8 $ "Bearer " <> t]) mToken
+  $ setRequestMethod "POST"
+  $ setRequestPath path
+  $ setRequestBodyJSON body
+  $ setRequestPort p
+  $ defaultRequest
+
+putJSON :: (ToJSON a) => Int -> ByteString -> a -> Maybe Text -> IO (Response LByteString)
+putJSON p path body mToken = httpLBS
+  $ maybe Relude.id (\t -> setRequestHeader "Authorization" [encodeUtf8 $ "Bearer " <> t]) mToken
+  $ setRequestMethod "PUT"
+  $ setRequestPath path
+  $ setRequestBodyJSON body
+  $ setRequestPort p
+  $ defaultRequest
+
+getJSON :: Int -> ByteString -> Maybe Text -> IO (Response LByteString)
+getJSON p path mToken = httpLBS
+  $ maybe Relude.id (\t -> setRequestHeader "Authorization" [encodeUtf8 $ "Bearer " <> t]) mToken
+  $ setRequestMethod "GET"
+  $ setRequestPath path
+  $ setRequestPort p
+  $ defaultRequest
+
+data RegisterResp = RegisterResp { token :: Text }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
+
+signupUser :: TestEnv -> Text -> Text -> IO Text
+signupUser env email password = do
+  resp <- postJSON env.port "/api/register"
+    (object ["email" .= email, "name" .= email, "password" .= password]) Nothing
+  getResponseStatusCode resp `shouldBe` 200
+  registerResp <- case Aeson.decode (getResponseBody resp) of
+    Just r -> pure (r :: RegisterResp)
+    Nothing -> fail "Failed to decode RegisterResp"
+  pure registerResp.token
+
+{-# START_FILE test/{{name-as-module}}/Integration/AuthFlowSpec.hs #-}
+module {{name-as-module}}.Integration.AuthFlowSpec (spec) where
+
+import Relude
+
+import Data.Aeson (FromJSON, object, (.=))
+import qualified Data.Aeson as Aeson
+import Network.HTTP.Simple (getResponseBody, getResponseStatusCode)
+import Test.Hspec
+
+import {{name-as-module}}.Integration.TestServer (TestEnv (..), getJSON, postJSON, putJSON, signupUser, withTestServer)
+
+data MeResp = MeResp
+  { id :: Text
+  , email :: Text
+  , name :: Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
+
+data LoginResp = LoginResp { token :: Text }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
+
+spec :: Spec
+spec = describe "Integration: Auth Flow" $ do
+  it "회원가입 → 로그인 → /me 플로우" $ withTestServer $ \env -> do
+    -- 1. 회원가입
+    token <- signupUser env "test@example.com" "password123"
+    token `shouldNotBe` ""
+
+    -- 2. 로그인
+    loginResp <- postJSON env.port "/api/login"
+      (object ["email" .= ("test@example.com" :: Text), "password" .= ("password123" :: Text)]) Nothing
+    getResponseStatusCode loginResp `shouldBe` 200
+    loginData <- case Aeson.decode (getResponseBody loginResp) of
+      Just r -> pure (r :: LoginResp)
+      Nothing -> fail "Failed to decode LoginResp"
+    loginData.token `shouldNotBe` ""
+
+    -- 3. /me 조회
+    meResp <- getJSON env.port "/api/me" (Just loginData.token)
+    getResponseStatusCode meResp `shouldBe` 200
+    meData <- case Aeson.decode (getResponseBody meResp) of
+      Just r -> pure (r :: MeResp)
+      Nothing -> fail "Failed to decode MeResp"
+    meData.email `shouldBe` "test@example.com"
+
+  it "잘못된 비밀번호로 로그인하면 401을 반환한다" $ withTestServer $ \env -> do
+    _ <- signupUser env "user@example.com" "correct123"
+    loginResp <- postJSON env.port "/api/login"
+      (object ["email" .= ("user@example.com" :: Text), "password" .= ("wrong" :: Text)]) Nothing
+    getResponseStatusCode loginResp `shouldBe` 401
+
+  it "중복 이메일로 가입하면 409를 반환한다" $ withTestServer $ \env -> do
+    _ <- signupUser env "dup@example.com" "password123"
+    dupResp <- postJSON env.port "/api/register"
+      (object ["email" .= ("dup@example.com" :: Text), "name" .= ("테스트" :: Text), "password" .= ("password456" :: Text)]) Nothing
+    getResponseStatusCode dupResp `shouldBe` 409
+
+  it "프로필 이름을 변경한다" $ withTestServer $ \env -> do
+    token <- signupUser env "profile@example.com" "password123"
+
+    -- 이름 변경
+    updateResp <- putJSON env.port "/api/me"
+      (object ["name" .= ("새이름" :: Text)]) (Just token)
+    getResponseStatusCode updateResp `shouldBe` 200
+    updateData <- case Aeson.decode (getResponseBody updateResp) of
+      Just r -> pure (r :: MeResp)
+      Nothing -> fail "Failed to decode UpdateProfile response"
+    updateData.name `shouldBe` "새이름"
+
+    -- 변경 확인
+    meResp <- getJSON env.port "/api/me" (Just token)
+    getResponseStatusCode meResp `shouldBe` 200
+    meData <- case Aeson.decode (getResponseBody meResp) of
+      Just r -> pure (r :: MeResp)
+      Nothing -> fail "Failed to decode MeResp"
+    meData.name `shouldBe` "새이름"
+
+  it "토큰 없이 /me에 접근하면 401을 반환한다" $ withTestServer $ \env -> do
+    meResp <- getJSON env.port "/api/me" Nothing
+    getResponseStatusCode meResp `shouldBe` 401
