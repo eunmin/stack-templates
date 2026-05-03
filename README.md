@@ -5,13 +5,13 @@ A Haskell Stack template for DDD + Effectful based Identity (auth) backend.
 ## Create Project
 
 ```bash
-stack new my-project /path/to/identity-effectful.hsfiles
+stack new my-project eunmin/identity-effectful
 ```
 
 Template variables can be specified with the `-p` option.
 
 ```bash
-stack new my-project /path/to/identity-effectful.hsfiles \
+stack new my-project eunmin/identity-effectful \
   -p "author-name:John Doe" \
   -p "author-email:john@example.com" \
   -p "github-username:johndoe"
