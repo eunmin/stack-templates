@@ -441,16 +441,36 @@ makeEffect ''UserRepo
 {-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/AuthTokenService.hs #-}
 module {{name-as-module}}.Identity.Command.Domain.AuthTokenService where
 
+import Relude
+
 import Effectful (Effect)
 import Effectful.TH (makeEffect)
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken)
 import {{name-as-module}}.Identity.Command.Domain.User (UserId)
 
+newtype AuthTokenError = AuthTokenGenerationFailed Text
+  deriving stock (Eq, Show)
+
 data AuthTokenSvc :: Effect where
-  GenerateToken :: UserId -> AuthTokenSvc m AuthToken
+  GenerateToken :: UserId -> AuthTokenSvc m (Either AuthTokenError AuthToken)
 
 makeEffect ''AuthTokenSvc
+
+{-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/IdentityError.hs #-}
+module {{name-as-module}}.Identity.Command.Domain.IdentityError
+  ( IdentityError (..)
+  ) where
+
+import Relude
+
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenError)
+import {{name-as-module}}.Identity.Command.Domain.User (UserError)
+
+data IdentityError
+  = IdentityUserError UserError
+  | IdentityAuthTokenError AuthTokenError
+  deriving stock (Eq, Show)
 
 {-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/PasswordService.hs #-}
 module {{name-as-module}}.Identity.Command.Domain.PasswordService where
@@ -483,6 +503,7 @@ import Effectful.Error.Dynamic (runErrorNoCallStack, throwError)
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken)
 import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc, generateToken)
+import {{name-as-module}}.Identity.Command.Domain.IdentityError (IdentityError (..))
 import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc, hashPassword)
 import {{name-as-module}}.Identity.Command.Domain.User
   ( Email
@@ -494,25 +515,25 @@ import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo, find
 
 execute ::
   (UserRepo :> es, AuthTokenSvc :> es, PasswordSvc :> es, IOE :> es) =>
-  Email -> Text -> Text -> Eff es (Either UserError AuthToken)
+  Email -> Text -> Text -> Eff es (Either IdentityError AuthToken)
 execute email name rawPassword = runErrorNoCallStack $ do
   existing <- findByEmail email
   case existing of
-    Just _ -> throwError $ EmailAlreadyExists email
+    Just _ -> throwError $ IdentityUserError $ EmailAlreadyExists email
     Nothing -> pure ()
 
   when (T.null $ T.strip name) $
-    throwError $ InvalidPassword "Name is required"
+    throwError $ IdentityUserError $ InvalidPassword "Name is required"
 
   when (T.length rawPassword < 4) $
-    throwError $ InvalidPassword "Password must be at least 4 characters"
+    throwError $ IdentityUserError $ InvalidPassword "Password must be at least 4 characters"
 
   hashedPw <- hashPassword rawPassword
   uid <- liftIO $ UserId <$> nextRandom
   now <- liftIO getCurrentTime
   let user = createUser uid email hashedPw (T.strip name) now
   save user
-  generateToken uid
+  generateToken uid >>= either (throwError . IdentityAuthTokenError) pure
 
 {-# START_FILE src/{{name-as-module}}/Identity/Command/UseCase/Login.hs #-}
 module {{name-as-module}}.Identity.Command.UseCase.Login
@@ -526,18 +547,19 @@ import Effectful.Error.Dynamic (runErrorNoCallStack, throwError)
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken)
 import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc, generateToken)
+import {{name-as-module}}.Identity.Command.Domain.IdentityError (IdentityError (..))
 import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc, verifyPassword)
 import {{name-as-module}}.Identity.Command.Domain.User (Email, User (..), UserError (..))
 import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo, findByEmail)
 
 execute ::
   (UserRepo :> es, AuthTokenSvc :> es, PasswordSvc :> es) =>
-  Email -> Text -> Eff es (Either UserError AuthToken)
+  Email -> Text -> Eff es (Either IdentityError AuthToken)
 execute email rawPassword = runErrorNoCallStack $ do
-  user <- findByEmail email >>= maybe (throwError $ UserNotFoundByEmail email) pure
+  user <- findByEmail email >>= maybe (throwError $ IdentityUserError $ UserNotFoundByEmail email) pure
   valid <- verifyPassword rawPassword user.hashedPassword
-  unless valid $ throwError PasswordMismatch
-  generateToken user.id
+  unless valid $ throwError $ IdentityUserError PasswordMismatch
+  generateToken user.id >>= either (throwError . IdentityAuthTokenError) pure
 
 {-# START_FILE src/{{name-as-module}}/Identity/Command/UseCase/UpdateProfile.hs #-}
 module {{name-as-module}}.Identity.Command.UseCase.UpdateProfile
@@ -620,6 +642,7 @@ import Effectful (Eff, IOE, (:>))
 import Effectful.Reader.Dynamic (Reader, ask)
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenError (..))
 import {{name-as-module}}.Identity.Command.Domain.User (UserId (..))
 
 data JwtConfig = JwtConfig
@@ -627,7 +650,7 @@ data JwtConfig = JwtConfig
   , expiryMinutes :: NominalDiffTime
   }
 
-generate :: (Reader JwtConfig :> es, IOE :> es) => UserId -> Eff es AuthToken
+generate :: (Reader JwtConfig :> es, IOE :> es) => UserId -> Eff es (Either AuthTokenError AuthToken)
 generate (UserId uuid) = do
   config <- ask @JwtConfig
   now <- liftIO getCurrentTime
@@ -642,8 +665,8 @@ generate (UserId uuid) = do
     alg <- bestJWSAlg jwk
     signJWT jwk (newJWSHeaderProtected alg) claims
   case result of
-    Left _ -> pure $ AuthToken ""
-    Right jwt -> pure $ AuthToken $ decodeUtf8 $ encodeCompact jwt
+    Left err -> pure $ Left $ AuthTokenGenerationFailed $ show err
+    Right jwt -> pure $ Right $ AuthToken $ decodeUtf8 $ encodeCompact jwt
 
 {-# START_FILE src/{{name-as-module}}/Identity/Infra/Gateway/BcryptPasswordGateway.hs #-}
 module {{name-as-module}}.Identity.Infra.Gateway.BcryptPasswordGateway
@@ -802,10 +825,11 @@ import Servant (JSON, Post, ReqBody, ServerError, type (:>))
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
 import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc)
+import {{name-as-module}}.Identity.Command.Domain.IdentityError (IdentityError (..))
 import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc)
 import {{name-as-module}}.Identity.Command.Domain.User (UserError (..), mkEmail)
 import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
-import {{name-as-module}}.Infra.Web.ErrorResponse (badRequest, conflict)
+import {{name-as-module}}.Infra.Web.ErrorResponse (badRequest, conflict, internalServerError)
 import qualified {{name-as-module}}.Identity.Command.UseCase.Register as Register
 
 type Route = "register" Servant.:> ReqBody '[JSON] RegisterRequest Servant.:> Post '[JSON] RegisterResponse
@@ -824,11 +848,16 @@ newtype RegisterResponse = RegisterResponse
   deriving stock (Show, Generic)
   deriving anyclass (ToJSON, ToSchema)
 
-toError :: UserError -> ServerError
-toError (EmailAlreadyExists _) = conflict "Error" "Email already exists" "EmailAlreadyExists"
-toError (InvalidEmail msg) = badRequest "Error" msg "InvalidEmail"
-toError (InvalidPassword msg) = badRequest "Error" msg "InvalidPassword"
-toError err = badRequest "Error" (show err) "BadRequest"
+toUserError :: UserError -> ServerError
+toUserError (EmailAlreadyExists _) = conflict "Error" "Email already exists" "EmailAlreadyExists"
+toUserError (InvalidEmail msg) = badRequest "Error" msg "InvalidEmail"
+toUserError (InvalidPassword msg) = badRequest "Error" msg "InvalidPassword"
+toUserError err = badRequest "Error" (show err) "BadRequest"
+
+toError :: IdentityError -> ServerError
+toError (IdentityUserError err) = toUserError err
+toError (IdentityAuthTokenError _) =
+  internalServerError "Error" "Failed to generate auth token" "AuthTokenGenerationFailed"
 
 handler ::
   ( UserRepo Eff.:> es
@@ -841,7 +870,7 @@ handler ::
 handler req = do
   email <- case mkEmail req.email of
     Right e -> pure e
-    Left err -> throwError $ toError err
+    Left err -> throwError $ toUserError err
   result <- Register.execute email req.name req.password
   case result of
     Left err -> throwError $ toError err
@@ -864,10 +893,11 @@ import Servant (JSON, Post, ReqBody, ServerError, type (:>))
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
 import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc)
+import {{name-as-module}}.Identity.Command.Domain.IdentityError (IdentityError (..))
 import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc)
 import {{name-as-module}}.Identity.Command.Domain.User (UserError (..), mkEmail)
 import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
-import {{name-as-module}}.Infra.Web.ErrorResponse (badRequest, unauthorized)
+import {{name-as-module}}.Infra.Web.ErrorResponse (badRequest, internalServerError, unauthorized)
 import qualified {{name-as-module}}.Identity.Command.UseCase.Login as Login
 
 type Route = "login" Servant.:> ReqBody '[JSON] LoginRequest Servant.:> Post '[JSON] LoginResponse
@@ -885,11 +915,16 @@ newtype LoginResponse = LoginResponse
   deriving stock (Show, Generic)
   deriving anyclass (ToJSON, ToSchema)
 
-toError :: UserError -> ServerError
-toError (UserNotFoundByEmail _) = unauthorized "Error" "Invalid email or password" "AuthFailed"
-toError PasswordMismatch = unauthorized "Error" "Invalid email or password" "AuthFailed"
-toError (InvalidEmail msg) = badRequest "Error" msg "InvalidEmail"
-toError err = badRequest "Error" (show err) "BadRequest"
+toUserError :: UserError -> ServerError
+toUserError (UserNotFoundByEmail _) = unauthorized "Error" "Invalid email or password" "AuthFailed"
+toUserError PasswordMismatch = unauthorized "Error" "Invalid email or password" "AuthFailed"
+toUserError (InvalidEmail msg) = badRequest "Error" msg "InvalidEmail"
+toUserError err = badRequest "Error" (show err) "BadRequest"
+
+toError :: IdentityError -> ServerError
+toError (IdentityUserError err) = toUserError err
+toError (IdentityAuthTokenError _) =
+  internalServerError "Error" "Failed to generate auth token" "AuthTokenGenerationFailed"
 
 handler ::
   ( UserRepo Eff.:> es
@@ -901,7 +936,7 @@ handler ::
 handler req = do
   email <- case mkEmail req.email of
     Right e -> pure e
-    Left err -> throwError $ toError err
+    Left err -> throwError $ toUserError err
   result <- Login.execute email req.password
   case result of
     Left err -> throwError $ toError err
@@ -1134,10 +1169,10 @@ withTx action = do
   st <- ask @DbState
   withResource st.pool $ \conn -> do
     liftIO $ beginMode st.txMode conn
-    r <- action `onException` liftIO (rollback conn)
+    r <- local (const (DbState st.pool (Just conn) st.txMode)) action
+      `onException` liftIO (rollback conn)
     liftIO $ commit conn
-    local (const (DbState st.pool (Just conn) st.txMode)) $
-      pure r
+    pure r
 
 {-# START_FILE src/{{name-as-module}}/Infra/Web/Auth.hs #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -1227,6 +1262,7 @@ module {{name-as-module}}.Infra.Web.ErrorResponse
   , forbidden
   , notFound
   , conflict
+  , internalServerError
   ) where
 
 import Relude
@@ -1241,6 +1277,7 @@ import Servant.Server
   , err403
   , err404
   , err409
+  , err500
   )
 
 data ErrorResponse = ErrorResponse
@@ -1272,6 +1309,9 @@ notFound t m c = jsonError err404 (ErrorResponse t m c)
 
 conflict :: Text -> Text -> Text -> ServerError
 conflict t m c = jsonError err409 (ErrorResponse t m c)
+
+internalServerError :: Text -> Text -> Text -> ServerError
+internalServerError t m c = jsonError err500 (ErrorResponse t m c)
 
 {-# START_FILE src/{{name-as-module}}/Infra/Web/Root.hs #-}
 module {{name-as-module}}.Infra.Web.Root
@@ -1470,6 +1510,7 @@ run ref = interpret $ \_ -> \case
 {-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/InMemoryAuthTokenSvc.hs #-}
 module {{name-as-module}}.Unit.Identity.Command.InMemoryAuthTokenSvc
   ( run
+  , runWithResult
   ) where
 
 import Relude
@@ -1478,11 +1519,15 @@ import Effectful (Eff)
 import Effectful.Dispatch.Dynamic (interpret)
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
-import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenSvc (..))
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenError, AuthTokenSvc (..))
+import {{name-as-module}}.Identity.Command.Domain.User (UserId)
 
 run :: Eff (AuthTokenSvc : es) a -> Eff es a
-run = interpret $ \_ -> \case
-  GenerateToken uid -> pure $ AuthToken ("test-token-" <> show uid)
+run = runWithResult $ \uid -> Right $ AuthToken ("test-token-" <> show uid)
+
+runWithResult :: (UserId -> Either AuthTokenError AuthToken) -> Eff (AuthTokenSvc : es) a -> Eff es a
+runWithResult resultFor = interpret $ \_ -> \case
+  GenerateToken uid -> pure $ resultFor uid
 
 {-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/InMemoryPasswordSvc.hs #-}
 module {{name-as-module}}.Unit.Identity.Command.InMemoryPasswordSvc
@@ -1511,6 +1556,8 @@ import Effectful (runEff)
 import Test.Hspec
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenError (..))
+import {{name-as-module}}.Identity.Command.Domain.IdentityError (IdentityError (..))
 import {{name-as-module}}.Identity.Command.Domain.User (Email (..), UserError (..))
 
 import {{name-as-module}}.Unit.Identity.Command.InMemoryAuthTokenSvc as AuthTokenSvc
@@ -1541,7 +1588,7 @@ spec = describe "Register" $ do
         $ do
           _ <- Register.execute (Email "dup@example.com") "User1" "password123"
           Register.execute (Email "dup@example.com") "User2" "password456"
-    result `shouldBe` Left (EmailAlreadyExists (Email "dup@example.com"))
+    result `shouldBe` Left (IdentityUserError $ EmailAlreadyExists (Email "dup@example.com"))
 
   it "returns InvalidPassword for passwords shorter than 4 characters" $ do
     result <- runEff $ do
@@ -1551,7 +1598,7 @@ spec = describe "Register" $ do
         . PasswordSvc.run
         $ Register.execute (Email "short@example.com") "TestUser" "abc"
     case result of
-      Left (InvalidPassword _) -> pure ()
+      Left (IdentityUserError (InvalidPassword _)) -> pure ()
       other -> expectationFailure $ "Expected InvalidPassword, got " <> show other
 
   it "fails for empty names" $ do
@@ -1562,7 +1609,7 @@ spec = describe "Register" $ do
         . PasswordSvc.run
         $ Register.execute (Email "noname@example.com") "  " "password123"
     case result of
-      Left (InvalidPassword _) -> pure ()
+      Left (IdentityUserError (InvalidPassword _)) -> pure ()
       other -> expectationFailure $ "Expected InvalidPassword, got " <> show other
 
   it "saves the user after registration" $ do
@@ -1577,6 +1624,16 @@ spec = describe "Register" $ do
     result `shouldSatisfy` isRight
     length users `shouldBe` 1
 
+  it "returns IdentityAuthTokenError when token generation fails" $ do
+    let tokenError = AuthTokenGenerationFailed "boom"
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef mempty
+      UserRepo.run userRef
+        . AuthTokenSvc.runWithResult (const $ Left tokenError)
+        . PasswordSvc.run
+        $ Register.execute (Email "token-fail@example.com") "TestUser" "password123"
+    result `shouldBe` Left (IdentityAuthTokenError tokenError)
+
 {-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/UseCase/LoginSpec.hs #-}
 module {{name-as-module}}.Unit.Identity.Command.UseCase.LoginSpec (spec) where
 
@@ -1590,6 +1647,8 @@ import Effectful (runEff)
 import Test.Hspec
 
 import {{name-as-module}}.Identity.Command.Domain.AuthToken (AuthToken (..))
+import {{name-as-module}}.Identity.Command.Domain.AuthTokenService (AuthTokenError (..))
+import {{name-as-module}}.Identity.Command.Domain.IdentityError (IdentityError (..))
 import {{name-as-module}}.Identity.Command.Domain.User
 
 import {{name-as-module}}.Unit.Identity.Command.InMemoryAuthTokenSvc as AuthTokenSvc
@@ -1627,7 +1686,7 @@ spec = describe "Login" $ do
         . AuthTokenSvc.run
         . PasswordSvc.run
         $ Login.execute email "password"
-    result `shouldBe` Left (UserNotFoundByEmail email)
+    result `shouldBe` Left (IdentityUserError $ UserNotFoundByEmail email)
 
   it "returns PasswordMismatch for wrong password" $ do
     let email = Email "user@example.com"
@@ -1638,7 +1697,19 @@ spec = describe "Login" $ do
         . AuthTokenSvc.run
         . PasswordSvc.run
         $ Login.execute email "wrongpassword"
-    result `shouldBe` Left PasswordMismatch
+    result `shouldBe` Left (IdentityUserError PasswordMismatch)
+
+  it "returns IdentityAuthTokenError when token generation fails" $ do
+    let email = Email "user@example.com"
+        tokenError = AuthTokenGenerationFailed "boom"
+    user <- mkTestUser email
+    result <- runEff $ do
+      userRef <- liftIO $ newIORef (Map.singleton user.id user)
+      UserRepo.run userRef
+        . AuthTokenSvc.runWithResult (const $ Left tokenError)
+        . PasswordSvc.run
+        $ Login.execute email "secret123"
+    result `shouldBe` Left (IdentityAuthTokenError tokenError)
 
 {-# START_FILE test/{{name-as-module}}/Unit/Identity/Command/UseCase/UpdateProfileSpec.hs #-}
 module {{name-as-module}}.Unit.Identity.Command.UseCase.UpdateProfileSpec (spec) where
