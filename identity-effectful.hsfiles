@@ -122,7 +122,7 @@ tests:
     - resource-pool
 
 {-# START_FILE stack.yaml #-}
-snapshot: lts-24.31
+snapshot: lts-24.51
 
 packages:
 - .
