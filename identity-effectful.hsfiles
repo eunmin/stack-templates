@@ -30,6 +30,7 @@ dependencies:
 - aeson
 - servant
 - servant-server
+- servant-websockets
 - warp
 - wai
 - http-types
@@ -39,6 +40,7 @@ dependencies:
 - katip-effectful
 - bcrypt
 - bytestring
+- websockets
 - swagger2
 - servant-swagger
 - servant-swagger-ui
@@ -191,6 +193,7 @@ stack exec {{name}}-exe
 | POST | /api/login | Log in | - |
 | GET | /api/me | Get my profile | JWT |
 | PUT | /api/me | Update profile | JWT |
+| WS | /ws/echo | Echo messages | - |
 
 Swagger UI: http://localhost:8080/swagger-ui
 
@@ -245,6 +248,7 @@ import Network.Wai (Application)
 import Servant
   ( Handler (Handler)
   , ServerError
+  , hoistServer
   , hoistServerWithContext
   , serveWithContext
   , type (:<|>) ((:<|>))
@@ -261,8 +265,8 @@ import {{name-as-module}}.Identity.Infra.Interpreter.PasswordSvcInterpreter as P
 import {{name-as-module}}.Identity.Infra.Interpreter.UserRepoInterpreter as UserRepoInterpreter
 import {{name-as-module}}.Infra.Persistence.Database (DbConfig (..), DbState, initDbState, migrate)
 import {{name-as-module}}.Infra.Web.Auth (AuthContext, mkAuthContext)
-import {{name-as-module}}.Infra.Web.Root (rootServerT)
-import {{name-as-module}}.Infra.Web.Router (API)
+import {{name-as-module}}.Infra.Web.Root (rootServerT, wsServerT)
+import {{name-as-module}}.Infra.Web.Router (API, WsAPI)
 import {{name-as-module}}.Infra.Web.Swagger (FullAPI, swaggerDoc)
 
 type App =
@@ -332,7 +336,11 @@ mkApp appState =
                (Proxy :: Proxy API)
                (Proxy :: Proxy AuthContext)
                (handlerRunner appState)
-               rootServerT)
+               rootServerT
+        :<|> hoistServer
+               (Proxy :: Proxy WsAPI)
+               (handlerRunner appState)
+               wsServerT)
 
 main :: IO ()
 main = do
@@ -342,6 +350,30 @@ main = do
   let appState = AppState dbSt jwtCfg
   putStrLn $ "Starting server on port " <> show port
   Warp.run port (mkApp appState)
+
+{-# START_FILE src/{{name-as-module}}/Echo/Infra/Web/Handler/Echo.hs #-}
+module {{name-as-module}}.Echo.Infra.Web.Handler.Echo
+  ( Route
+  , handler
+  ) where
+
+import Relude
+
+import qualified Effectful as Eff
+import Effectful (Eff)
+import qualified Network.WebSockets as WS
+import Servant (type (:>))
+import Servant.API.WebSocket (WebSocket)
+
+type Route = "echo" :> WebSocket
+
+handler :: (Eff.IOE Eff.:> es) => WS.Connection -> Eff es ()
+handler conn =
+  Eff.liftIO $
+    WS.withPingThread conn 30 (pure ()) $
+      forever $ do
+        msg <- WS.receiveData conn :: IO Text
+        WS.sendTextData conn msg
 
 {-# START_FILE src/{{name-as-module}}/Identity/Command/Domain/User.hs #-}
 module {{name-as-module}}.Identity.Command.Domain.User
@@ -1316,6 +1348,7 @@ internalServerError t m c = jsonError err500 (ErrorResponse t m c)
 {-# START_FILE src/{{name-as-module}}/Infra/Web/Root.hs #-}
 module {{name-as-module}}.Infra.Web.Root
   ( rootServerT
+  , wsServerT
   ) where
 
 import Effectful (Eff)
@@ -1329,8 +1362,9 @@ import {{name-as-module}}.Identity.Command.Domain.PasswordService (PasswordSvc)
 import {{name-as-module}}.Identity.Command.Domain.UserRepository (UserRepo)
 import {{name-as-module}}.Identity.Infra.Gateway.JwtAuthTokenGateway (JwtConfig)
 
+import qualified {{name-as-module}}.Echo.Infra.Web.Handler.Echo as Echo
 import {{name-as-module}}.Infra.Web.Auth (AuthToken)
-import {{name-as-module}}.Infra.Web.Router (API, ProtectedAPI, UnProtectedAPI)
+import {{name-as-module}}.Infra.Web.Router (API, ProtectedAPI, UnProtectedAPI, WsAPI)
 import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Register as Register
 import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Login as Login
 import qualified {{name-as-module}}.Identity.Infra.Web.Handler.GetMe as GetMe
@@ -1348,6 +1382,9 @@ type Effs es =
 rootServerT :: (Effs es) => ServerT API (Eff es)
 rootServerT = unProtectedServerT :<|> protectedServerT
 
+wsServerT :: (Eff.IOE Eff.:> es) => ServerT WsAPI (Eff es)
+wsServerT = Echo.handler
+
 unProtectedServerT :: (Effs es) => ServerT UnProtectedAPI (Eff es)
 unProtectedServerT =
   Register.handler
@@ -1361,6 +1398,7 @@ protectedServerT token =
 {-# START_FILE src/{{name-as-module}}/Infra/Web/Router.hs #-}
 module {{name-as-module}}.Infra.Web.Router
   ( API
+  , WsAPI
   , UnProtectedAPI
   , ProtectedAPI
   ) where
@@ -1368,12 +1406,15 @@ module {{name-as-module}}.Infra.Web.Router
 import Servant (type (:<|>), type (:>))
 import Servant.API.Experimental.Auth (AuthProtect)
 
+import qualified {{name-as-module}}.Echo.Infra.Web.Handler.Echo as Echo
 import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Register as Register
 import qualified {{name-as-module}}.Identity.Infra.Web.Handler.Login as Login
 import qualified {{name-as-module}}.Identity.Infra.Web.Handler.GetMe as GetMe
 import qualified {{name-as-module}}.Identity.Infra.Web.Handler.UpdateProfile as UpdateProfile
 
 type API = "api" :> (UnProtectedAPI :<|> AuthProtect "jwt" :> ProtectedAPI)
+
+type WsAPI = "ws" :> Echo.Route
 
 type UnProtectedAPI =
   Register.Route
@@ -1406,7 +1447,7 @@ import Servant.API.Experimental.Auth (AuthProtect)
 import Servant.Swagger (HasSwagger (..), toSwagger)
 import Servant.Swagger.UI (SwaggerSchemaUI)
 
-import {{name-as-module}}.Infra.Web.Router (API)
+import {{name-as-module}}.Infra.Web.Router (API, WsAPI)
 
 -- | Orphan HasSwagger instance for AuthProtect "jwt"
 instance HasSwagger api => HasSwagger (AuthProtect "jwt" :> api) where
@@ -1414,7 +1455,7 @@ instance HasSwagger api => HasSwagger (AuthProtect "jwt" :> api) where
 
 type SwaggerAPI = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type FullAPI = SwaggerAPI :<|> API
+type FullAPI = SwaggerAPI :<|> API :<|> WsAPI
 
 swaggerDoc :: Swagger
 swaggerDoc =
